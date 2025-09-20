@@ -35,7 +35,7 @@ def convert():
 
     try:
         subprocess.run([
-            LIBREOFFICE_PATH, '--headless', '--convert-to', 'pdf',
+            'libreoffice', '--headless', '--convert-to', 'pdf',
             '--outdir', UPLOAD_FOLDER, input_path
         ], check=True, capture_output=True)
 
@@ -56,4 +56,5 @@ def convert():
         return 'Erro: LibreOffice não foi encontrado no caminho especificado.', 500
 
 if __name__ == '__main__':
+
     app.run(debug=True)
