@@ -8,7 +8,7 @@ UPLOAD_FOLDER = tempfile.gettempdir()
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # Limite de 500MB
 
 # Caminho absoluto para o LibreOffice
-LIBREOFFICE_PATH = r"C:\Program Files\LibreOffice\program\soffice.exe"
+LIBREOFFICE_PATH = "libreoffice"
 
 @app.route('/')
 def index():
@@ -58,3 +58,4 @@ def convert():
 if __name__ == '__main__':
 
     app.run(debug=True)
+
