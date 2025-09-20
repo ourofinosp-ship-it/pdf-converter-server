@@ -2,12 +2,13 @@ from flask import Flask, request, send_file, after_this_request
 import subprocess
 import os
 import tempfile
+import time
 
 app = Flask(__name__)
 UPLOAD_FOLDER = tempfile.gettempdir()
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # Limite de 500MB
 
-# Caminho absoluto para o LibreOffice
+# Caminho para o LibreOffice no Docker
 LIBREOFFICE_PATH = "libreoffice"
 
 @app.route('/')
@@ -35,27 +36,30 @@ def convert():
 
     try:
         subprocess.run([
-            'libreoffice', '--headless', '--convert-to', 'pdf',
+            LIBREOFFICE_PATH, '--headless', '--convert-to', 'pdf',
             '--outdir', UPLOAD_FOLDER, input_path
-        ], check=True, capture_output=True)
+        ], check=True, capture_output=True, timeout=240)  # Timeout de 240s para conversão
 
         @after_this_request
         def cleanup(response):
-            try:
-                if os.path.exists(input_path): os.remove(input_path)
-                if os.path.exists(output_path): os.remove(output_path)
-            except Exception as e:
-                print(f"Erro ao limpar arquivos: {e}")
+            for _ in range(5):  # Tenta 5 vezes para limpar arquivos
+                try:
+                    if os.path.exists(input_path): os.remove(input_path)
+                    if os.path.exists(output_path): os.remove(output_path)
+                    break
+                except Exception as e:
+                    print(f"Erro ao limpar arquivos: {e}")
+                    time.sleep(1)  # Espera 1s antes de tentar novamente
             return response
 
         return send_file(output_path, as_attachment=True, download_name='converted.pdf')
 
+    except subprocess.TimeoutExpired:
+        return 'Erro: Conversão demorou demais (timeout). Tente um arquivo menor.', 500
     except subprocess.CalledProcessError as e:
         return f'Erro na conversão: {e.stderr.decode()}', 500
     except FileNotFoundError:
         return 'Erro: LibreOffice não foi encontrado no caminho especificado.', 500
 
 if __name__ == '__main__':
-
     app.run(debug=True)
-
