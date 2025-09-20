@@ -4,6 +4,7 @@ import os
 import tempfile
 import time
 import uuid
+import emoji  # Biblioteca para emojis
 
 app = Flask(__name__)
 UPLOAD_FOLDER = tempfile.gettempdir()
@@ -12,7 +13,7 @@ app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # Limite de 500MB
 # Caminho para o LibreOffice
 LIBREOFFICE_PATH = "libreoffice"
 
-# Template HTML com interface moderna
+# Template HTML com interface moderna e emojis
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -20,7 +21,6 @@ HTML_TEMPLATE = '''
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Conversor de Documentos para PDF</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
@@ -52,9 +52,9 @@ HTML_TEMPLATE = '''
         }
         
         .logo {
-            color: #667eea;
             font-size: 3.5rem;
             margin-bottom: 20px;
+            font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
         }
         
         h1 {
@@ -97,8 +97,8 @@ HTML_TEMPLATE = '''
         
         .file-icon {
             font-size: 3rem;
-            color: #667eea;
             margin-bottom: 15px;
+            font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
         }
         
         .file-text {
@@ -126,6 +126,7 @@ HTML_TEMPLATE = '''
             align-items: center;
             justify-content: center;
             width: 100%;
+            font-family: 'Poppins', sans-serif;
         }
         
         .submit-btn:hover {
@@ -139,6 +140,7 @@ HTML_TEMPLATE = '''
         
         .btn-icon {
             margin-right: 10px;
+            font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
         }
         
         .supported-formats {
@@ -162,7 +164,7 @@ HTML_TEMPLATE = '''
         
         .format-icon {
             font-size: 2rem;
-            color: #667eea;
+            font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
         }
         
         .format-names {
@@ -216,6 +218,7 @@ HTML_TEMPLATE = '''
         .alert-icon {
             margin-right: 10px;
             font-size: 1.2rem;
+            font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
         }
         
         @media (max-width: 768px) {
@@ -235,12 +238,18 @@ HTML_TEMPLATE = '''
                 padding: 20px;
             }
         }
+        
+        /* Melhorando a renderização de emojis */
+        .emoji {
+            font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+            font-weight: normal;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="logo">
-            <i class="fas fa-file-pdf"></i>
+            {{ emojis.page_with_curl }}
         </div>
         
         <h1>Conversor de Documentos para PDF</h1>
@@ -251,7 +260,13 @@ HTML_TEMPLATE = '''
             {% if messages %}
                 {% for category, message in messages %}
                     <div class="alert alert-{{ category }}">
-                        <i class="fas {% if category == 'error' %}fa-exclamation-circle{% else %}fa-check-circle{% endif %} alert-icon"></i>
+                        <span class="alert-icon">
+                            {% if category == 'error' %}
+                                {{ emojis.warning }}
+                            {% else %}
+                                {{ emojis.white_check_mark }}
+                            {% endif %}
+                        </span>
                         {{ message }}
                     </div>
                 {% endfor %}
@@ -262,23 +277,23 @@ HTML_TEMPLATE = '''
             <div class="upload-container">
                 <input type="file" name="file" id="file" class="file-input" accept=".doc,.docx,.ppt,.pptx,.xls,.xlsx" required>
                 <label for="file" class="file-label">
-                    <i class="fas fa-cloud-upload-alt file-icon"></i>
+                    <span class="file-icon">{{ emojis.cloud_with_arrow_up }}</span>
                     <span class="file-text">Selecione seu documento</span>
                     <span class="file-hint">Clique ou arraste o arquivo até aqui</span>
                 </label>
             </div>
             
             <button type="submit" class="submit-btn">
-                <i class="fas fa-sync-alt btn-icon"></i> Converter para PDF
+                <span class="btn-icon">{{ emojis.arrows_clockwise }}</span> Converter para PDF
             </button>
         </form>
         
         <div class="supported-formats">
             <p class="formats-title">Formatos suportados:</p>
             <div class="format-icons">
-                <i class="fas fa-file-word format-icon" title="Word"></i>
-                <i class="fas fa-file-powerpoint format-icon" title="PowerPoint"></i>
-                <i class="fas fa-file-excel format-icon" title="Excel"></i>
+                <span class="format-icon" title="Word">{{ emojis.page_facing_up }}</span>
+                <span class="format-icon" title="PowerPoint">{{ emojis.bar_chart }}</span>
+                <span class="format-icon" title="Excel">{{ emojis.chart_with_upwards_trend }}</span>
             </div>
             <div class="format-names">
                 <span class="format-badge">.doc</span>
@@ -292,7 +307,7 @@ HTML_TEMPLATE = '''
     </div>
     
     <div class="footer">
-        <p>Desenvolvido com <i class="fas fa-heart" style="color: #ff4757;"></i> usando Flask e LibreOffice</p>
+        <p>Desenvolvido com <span class="emoji">❤️</span> usando Flask e LibreOffice</p>
     </div>
 
     <script>
@@ -342,7 +357,7 @@ HTML_TEMPLATE = '''
         
         form.addEventListener('submit', () => {
             if (fileInput.files.length) {
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin btn-icon"></i> Convertendo...';
+                submitBtn.innerHTML = '<span class="btn-icon">⏳</span> Convertendo...';
                 submitBtn.disabled = true;
             }
         });
@@ -353,7 +368,20 @@ HTML_TEMPLATE = '''
 
 @app.route('/')
 def index():
-    return render_template_string(HTML_TEMPLATE)
+    # Dicionário de emojis para usar no template
+    emojis_dict = {
+        'page_with_curl': emoji.emojize(":page_with_curl:"),
+        'cloud_with_arrow_up': emoji.emojize(":cloud_with_arrow_up:"),
+        'arrows_clockwise': emoji.emojize(":arrows_clockwise:"),
+        'page_facing_up': emoji.emojize(":page_facing_up:"),
+        'bar_chart': emoji.emojize(":bar_chart:"),
+        'chart_with_upwards_trend': emoji.emojize(":chart_with_upwards_trend:"),
+        'warning': emoji.emojize(":warning:"),
+        'white_check_mark': emoji.emojize(":white_check_mark:"),
+        'heart': emoji.emojize(":red_heart:")
+    }
+    
+    return render_template_string(HTML_TEMPLATE, emojis=emojis_dict)
 
 @app.route('/convert', methods=['POST'])
 def convert():
