@@ -1,106 +1,373 @@
-from flask import Flask, request, send_file, after_this_request
+from flask import Flask, request, send_file, after_this_request, render_template_string
 import subprocess
 import os
 import tempfile
 import time
+import uuid
 
 app = Flask(__name__)
 UPLOAD_FOLDER = tempfile.gettempdir()
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # Limite de 500MB
 
-# Caminho para o LibreOffice no Docker
+# Caminho para o LibreOffice
 LIBREOFFICE_PATH = "libreoffice"
+
+# Template HTML com interface moderna
+HTML_TEMPLATE = '''
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Documentos para PDF</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            width: 100%;
+            max-width: 600px;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .logo {
+            color: #667eea;
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .description {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        
+        .upload-container {
+            background: #f8f9fa;
+            border: 2px dashed #ced4da;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 25px;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-container:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .file-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .file-icon {
+            font-size: 3rem;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        
+        .file-text {
+            font-size: 1.2rem;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+        
+        .file-hint {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-icon {
+            margin-right: 10px;
+        }
+        
+        .supported-formats {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .formats-title {
+            font-size: 1rem;
+            color: #495057;
+            margin-bottom: 15px;
+        }
+        
+        .format-icons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .format-icon {
+            font-size: 2rem;
+            color: #667eea;
+        }
+        
+        .format-names {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        
+        .format-badge {
+            background: #f8f9fa;
+            padding: 5px 12px;
+            border-radius: 20px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            color: #fff;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        
+        .footer a {
+            color: #fff;
+            text-decoration: none;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .alert-error {
+            background: #ffe6e6;
+            color: #d9534f;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-success {
+            background: #e6f7ee;
+            color: #28a745;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-icon {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 25px;
+            }
+            
+            .logo {
+                font-size: 2.5rem;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+            
+            .upload-container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <i class="fas fa-file-pdf"></i>
+        </div>
+        
+        <h1>Conversor de Documentos para PDF</h1>
+        
+        <p class="description">Converta seus documentos para PDF de forma rápida, simples e gratuita.</p>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        <i class="fas {% if category == 'error' %}fa-exclamation-circle{% else %}fa-check-circle{% endif %} alert-icon"></i>
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <form method="post" enctype="multipart/form-data" action="/convert">
+            <div class="upload-container">
+                <input type="file" name="file" id="file" class="file-input" accept=".doc,.docx,.ppt,.pptx,.xls,.xlsx" required>
+                <label for="file" class="file-label">
+                    <i class="fas fa-cloud-upload-alt file-icon"></i>
+                    <span class="file-text">Selecione seu documento</span>
+                    <span class="file-hint">Clique ou arraste o arquivo até aqui</span>
+                </label>
+            </div>
+            
+            <button type="submit" class="submit-btn">
+                <i class="fas fa-sync-alt btn-icon"></i> Converter para PDF
+            </button>
+        </form>
+        
+        <div class="supported-formats">
+            <p class="formats-title">Formatos suportados:</p>
+            <div class="format-icons">
+                <i class="fas fa-file-word format-icon" title="Word"></i>
+                <i class="fas fa-file-powerpoint format-icon" title="PowerPoint"></i>
+                <i class="fas fa-file-excel format-icon" title="Excel"></i>
+            </div>
+            <div class="format-names">
+                <span class="format-badge">.doc</span>
+                <span class="format-badge">.docx</span>
+                <span class="format-badge">.ppt</span>
+                <span class="format-badge">.pptx</span>
+                <span class="format-badge">.xls</span>
+                <span class="format-badge">.xlsx</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>Desenvolvido com <i class="fas fa-heart" style="color: #ff4757;"></i> usando Flask e LibreOffice</p>
+    </div>
+
+    <script>
+        // Drag and drop functionality
+        const fileInput = document.getElementById('file');
+        const fileLabel = document.querySelector('.file-label');
+        const fileText = document.querySelector('.file-text');
+        const fileHint = document.querySelector('.file-hint');
+        
+        fileLabel.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileLabel.style.borderColor = '#667eea';
+            fileLabel.style.backgroundColor = '#f0f4ff';
+        });
+        
+        fileLabel.addEventListener('dragleave', () => {
+            fileLabel.style.borderColor = '#ced4da';
+            fileLabel.style.backgroundColor = '#f8f9fa';
+        });
+        
+        fileLabel.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileLabel.style.borderColor = '#ced4da';
+            fileLabel.style.backgroundColor = '#f8f9fa';
+            
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                updateFileName();
+            }
+        });
+        
+        fileInput.addEventListener('change', updateFileName);
+        
+        function updateFileName() {
+            if (fileInput.files.length) {
+                fileText.textContent = fileInput.files[0].name;
+                fileHint.textContent = 'Clique ou arraste um arquivo diferente para alterar';
+            } else {
+                fileText.textContent = 'Selecione seu documento';
+                fileHint.textContent = 'Clique ou arraste o arquivo até aqui';
+            }
+        }
+        
+        // Form submission feedback
+        const form = document.querySelector('form');
+        const submitBtn = document.querySelector('.submit-btn');
+        
+        form.addEventListener('submit', () => {
+            if (fileInput.files.length) {
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin btn-icon"></i> Convertendo...';
+                submitBtn.disabled = true;
+            }
+        });
+    </script>
+</body>
+</html>
+'''
 
 @app.route('/')
 def index():
-    return '''
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Conversor de Documentos para PDF</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 20px;
-                background-color: #f5f5f5;
-            }
-            .container {
-                background: white;
-                padding: 30px;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                text-align: center;
-            }
-            h2 {
-                color: #2c3e50;
-                margin-bottom: 30px;
-            }
-            .file-input {
-                margin: 20px 0;
-                padding: 15px;
-                border: 2px dashed #3498db;
-                border-radius: 5px;
-                background-color: #f8f9fa;
-            }
-            .submit-btn {
-                background-color: #3498db;
-                color: white;
-                padding: 12px 24px;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
-                font-size: 16px;
-                transition: background-color 0.3s;
-            }
-            .submit-btn:hover {
-                background-color: #2980b9;
-            }
-            .supported-formats {
-                margin-top: 20px;
-                color: #7f8c8d;
-                font-size: 14px;
-            }
-            .emoji {
-                font-size: 24px;
-                margin: 0 5px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h2>📄 Conversor de Documentos para PDF 📄</h2>
-            <form method="post" enctype="multipart/form-data" action="/convert">
-                <div class="file-input">
-                    <input type="file" name="file" accept=".doc,.docx,.ppt,.pptx,.xls,.xlsx" required>
-                </div>
-                <input type="submit" value="🔄 Converter para PDF" class="submit-btn">
-            </form>
-            <div class="supported-formats">
-                <p>📝 Formatos suportados: .doc, .docx, .ppt, .pptx, .xls, .xlsx</p>
-                <p>⚡ Limite máximo: 500MB</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    '''
+    return render_template_string(HTML_TEMPLATE)
 
 @app.route('/convert', methods=['POST'])
 def convert():
     if 'file' not in request.files:
-        return '❌ Nenhum arquivo enviado!', 400
+        return render_template_string(HTML_TEMPLATE, error='Nenhum arquivo enviado!'), 400
 
     file = request.files['file']
     if file.filename == '':
-        return '❌ Nenhum arquivo selecionado!', 400
+        return render_template_string(HTML_TEMPLATE, error='Nenhum arquivo selecionado!'), 400
 
-    # Gera um nome de arquivo único para evitar conflitos
-    timestamp = str(int(time.time()))
+    # Generate unique filename to avoid conflicts
+    unique_id = str(uuid.uuid4())[:8]
     original_filename = file.filename
-    safe_filename = f"{timestamp}_{original_filename.replace(' ', '_')}"
+    safe_filename = f"{unique_id}_{original_filename.replace(' ', '_')}"
     
     input_path = os.path.join(UPLOAD_FOLDER, safe_filename)
     file.save(input_path)
@@ -108,14 +375,14 @@ def convert():
     output_path = os.path.join(UPLOAD_FOLDER, output_filename)
 
     try:
-        # Executa a conversão com LibreOffice
+        # Execute conversion with LibreOffice
         result = subprocess.run([
             LIBREOFFICE_PATH, '--headless', '--convert-to', 'pdf',
             '--outdir', UPLOAD_FOLDER, input_path
         ], check=True, capture_output=True, timeout=240)
 
         if not os.path.exists(output_path):
-            return '❌ Erro: Arquivo PDF não foi gerado.', 500
+            return render_template_string(HTML_TEMPLATE, error='Erro: Arquivo PDF não foi gerado.'), 500
 
         @after_this_request
         def cleanup(response):
@@ -125,7 +392,7 @@ def convert():
                 if os.path.exists(output_path):
                     os.remove(output_path)
             except Exception as e:
-                print(f"⚠️ Erro ao limpar arquivos: {e}")
+                print(f"Erro ao limpar arquivos: {e}")
             return response
 
         return send_file(
@@ -136,14 +403,14 @@ def convert():
         )
 
     except subprocess.TimeoutExpired:
-        return '⏰ Erro: Conversão demorou demais (timeout). Tente um arquivo menor.', 500
+        return render_template_string(HTML_TEMPLATE, error='Erro: Conversão demorou demais (timeout). Tente um arquivo menor.'), 500
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode() if e.stderr else str(e)
-        return f'❌ Erro na conversão: {error_msg}', 500
+        return render_template_string(HTML_TEMPLATE, error=f'Erro na conversão: {error_msg}'), 500
     except FileNotFoundError:
-        return '❌ Erro: LibreOffice não foi encontrado.', 500
+        return render_template_string(HTML_TEMPLATE, error='Erro: LibreOffice não foi encontrado.'), 500
     except Exception as e:
-        return f'❌ Erro inesperado: {str(e)}', 500
+        return render_template_string(HTML_TEMPLATE, error=f'Erro inesperado: {str(e)}'), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
