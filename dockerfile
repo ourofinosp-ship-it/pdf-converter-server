@@ -8,4 +8,5 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "app:app"]
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "--bind", "0.0.0.0:10000", "app:app"]
+
